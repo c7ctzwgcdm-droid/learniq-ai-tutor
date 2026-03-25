@@ -24,7 +24,7 @@ export default function ProfilePage() {
           </div>
           <div>
             <h2 className="text-lg font-semibold font-heading text-foreground">Alex Johnson</h2>
-            <p className="text-sm text-muted-foreground">alex@university.edu</p>
+            <p className="text-sm text-muted-foreground">alex@example.com</p>
           </div>
         </div>
       </div>
