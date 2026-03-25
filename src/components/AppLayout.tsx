@@ -12,6 +12,7 @@ export default function AppLayout() {
           <header className="h-14 flex items-center border-b border-border px-4 bg-card/50 backdrop-blur-sm">
             <SidebarTrigger className="mr-4" />
             <div className="flex-1" />
+            <ThemeToggle />
           </header>
           <main className="flex-1 overflow-auto">
             <Outlet />
