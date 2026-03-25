@@ -2,8 +2,9 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { FileQuestion, Sparkles, CheckCircle, XCircle, ArrowRight } from "lucide-react";
+import { Sparkles, CheckCircle, XCircle, ArrowRight, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { toast } from "sonner";
 
 interface Question {
   id: number;
@@ -14,33 +15,53 @@ interface Question {
 }
 
 type Difficulty = "beginner" | "intermediate" | "advanced";
-type QuizState = "setup" | "quiz" | "results";
+type QuizState = "setup" | "loading" | "quiz" | "results";
 
-const mockQuestions: Question[] = [
-  { id: 1, question: "What is Newton's First Law of Motion?", options: ["An object in motion stays in motion unless acted upon", "Force equals mass times acceleration", "Every action has an equal and opposite reaction", "Energy cannot be created or destroyed"], correctIndex: 0, explanation: "Newton's First Law states that an object will remain at rest or in uniform motion unless acted upon by an external force. This is also known as the Law of Inertia." },
-  { id: 2, question: "What is the SI unit of force?", options: ["Watt", "Newton", "Joule", "Pascal"], correctIndex: 1, explanation: "The Newton (N) is the SI unit of force, named after Sir Isaac Newton. 1 Newton = 1 kg·m/s²." },
-  { id: 3, question: "Which law relates force, mass, and acceleration?", options: ["First Law", "Second Law", "Third Law", "Law of Gravitation"], correctIndex: 1, explanation: "Newton's Second Law (F = ma) directly relates force to mass and acceleration." },
-  { id: 4, question: "What is the formula for gravitational force?", options: ["F = mv", "F = ma", "F = Gm₁m₂/r²", "F = kx"], correctIndex: 2, explanation: "The universal law of gravitation states F = Gm₁m₂/r², where G is the gravitational constant." },
-  { id: 5, question: "What happens when two objects exert forces on each other?", options: ["Only the larger object is affected", "Forces are equal and opposite", "Forces cancel out completely", "The lighter object accelerates more"], correctIndex: 1, explanation: "Newton's Third Law: for every action, there is an equal and opposite reaction." },
-];
+const QUIZ_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-quiz`;
 
 export default function QuizPage() {
   const [state, setState] = useState<QuizState>("setup");
   const [topic, setTopic] = useState("");
   const [difficulty, setDifficulty] = useState<Difficulty>("intermediate");
+  const [questions, setQuestions] = useState<Question[]>([]);
   const [currentQ, setCurrentQ] = useState(0);
-  const [answers, setAnswers] = useState<(number | null)[]>(Array(mockQuestions.length).fill(null));
+  const [answers, setAnswers] = useState<(number | null)[]>([]);
   const [submitted, setSubmitted] = useState(false);
 
-  const quizzesUsed = 1;
-  const quizzesLimit = 3;
-
-  const startQuiz = () => {
+  const startQuiz = async () => {
     if (!topic.trim()) return;
-    setState("quiz");
-    setCurrentQ(0);
-    setAnswers(Array(mockQuestions.length).fill(null));
-    setSubmitted(false);
+    setState("loading");
+
+    try {
+      const resp = await fetch(QUIZ_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({ topic: topic.trim(), difficulty, count: 5 }),
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ error: "Request failed" }));
+        throw new Error(err.error || `Error ${resp.status}`);
+      }
+
+      const data = await resp.json();
+      const qs: Question[] = data.questions.map((q: any, i: number) => ({
+        id: i + 1,
+        ...q,
+      }));
+      setQuestions(qs);
+      setAnswers(Array(qs.length).fill(null));
+      setCurrentQ(0);
+      setSubmitted(false);
+      setState("quiz");
+    } catch (e: any) {
+      console.error("Quiz error:", e);
+      toast.error(e.message || "Failed to generate quiz");
+      setState("setup");
+    }
   };
 
   const selectAnswer = (qIndex: number, optIndex: number) => {
@@ -55,8 +76,8 @@ export default function QuizPage() {
     setState("results");
   };
 
-  const score = answers.reduce((acc, ans, i) => acc + (ans === mockQuestions[i]?.correctIndex ? 1 : 0), 0);
-  const percentage = Math.round((score / mockQuestions.length) * 100);
+  const score = answers.reduce((acc, ans, i) => acc + (ans === questions[i]?.correctIndex ? 1 : 0), 0);
+  const percentage = questions.length ? Math.round((score / questions.length) * 100) : 0;
 
   if (state === "setup") {
     return (
@@ -64,9 +85,6 @@ export default function QuizPage() {
         <div className="mb-8">
           <h1 className="text-2xl font-bold font-heading text-foreground mb-2">Quiz Generator</h1>
           <p className="text-muted-foreground">Generate a quiz on any topic with AI-powered questions.</p>
-          <div className="text-xs text-muted-foreground mt-2 bg-muted px-3 py-1 rounded-full inline-block">
-            {quizzesUsed}/{quizzesLimit} quizzes today
-          </div>
         </div>
 
         <div className="space-y-6 rounded-xl border border-border bg-card p-6">
@@ -96,10 +114,20 @@ export default function QuizPage() {
               ))}
             </div>
           </div>
-          <Button variant="hero" onClick={startQuiz} disabled={!topic.trim()} className="w-full">
+          <Button onClick={startQuiz} disabled={!topic.trim()} className="w-full gradient-primary text-primary-foreground">
             <Sparkles className="h-4 w-4 mr-2" /> Generate Quiz
           </Button>
         </div>
+      </div>
+    );
+  }
+
+  if (state === "loading") {
+    return (
+      <div className="p-6 max-w-2xl mx-auto flex flex-col items-center justify-center min-h-[60vh]">
+        <Loader2 className="h-10 w-10 text-primary animate-spin mb-4" />
+        <p className="text-lg font-heading font-semibold text-foreground">Generating your quiz...</p>
+        <p className="text-muted-foreground text-sm mt-1">Creating {difficulty} questions about "{topic}"</p>
       </div>
     );
   }
@@ -114,11 +142,11 @@ export default function QuizPage() {
           <h1 className="text-2xl font-bold font-heading text-foreground mb-1">
             {percentage >= 90 ? "Outstanding!" : percentage >= 70 ? "Great job!" : percentage >= 50 ? "Keep practising!" : "Time to review!"}
           </h1>
-          <p className="text-muted-foreground">{score}/{mockQuestions.length} correct answers on "{topic}"</p>
+          <p className="text-muted-foreground">{score}/{questions.length} correct answers on "{topic}"</p>
         </div>
 
         <div className="space-y-4">
-          {mockQuestions.map((q, i) => {
+          {questions.map((q, i) => {
             const isCorrect = answers[i] === q.correctIndex;
             return (
               <motion.div
@@ -142,23 +170,23 @@ export default function QuizPage() {
           })}
         </div>
 
-        <Button variant="hero" className="w-full mt-6" onClick={() => { setState("setup"); setTopic(""); }}>
+        <Button className="w-full mt-6 gradient-primary text-primary-foreground" onClick={() => { setState("setup"); setTopic(""); }}>
           Take Another Quiz
         </Button>
       </div>
     );
   }
 
-  const q = mockQuestions[currentQ];
+  const q = questions[currentQ];
   return (
     <div className="p-6 max-w-2xl mx-auto">
       <div className="mb-6">
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-lg font-semibold font-heading text-foreground">Quiz: {topic}</h1>
-          <span className="text-sm text-muted-foreground">{currentQ + 1}/{mockQuestions.length}</span>
+          <span className="text-sm text-muted-foreground">{currentQ + 1}/{questions.length}</span>
         </div>
         <div className="w-full h-2 rounded-full bg-muted overflow-hidden">
-          <div className="h-full gradient-primary rounded-full transition-all" style={{ width: `${((currentQ + 1) / mockQuestions.length) * 100}%` }} />
+          <div className="h-full gradient-primary rounded-full transition-all" style={{ width: `${((currentQ + 1) / questions.length) * 100}%` }} />
         </div>
       </div>
 
@@ -188,12 +216,12 @@ export default function QuizPage() {
             <Button variant="outline" disabled={currentQ === 0} onClick={() => setCurrentQ(prev => prev - 1)}>
               Previous
             </Button>
-            {currentQ < mockQuestions.length - 1 ? (
+            {currentQ < questions.length - 1 ? (
               <Button variant="default" onClick={() => setCurrentQ(prev => prev + 1)} disabled={answers[currentQ] === null}>
                 Next <ArrowRight className="h-4 w-4 ml-1" />
               </Button>
             ) : (
-              <Button variant="hero" onClick={submitQuiz} disabled={answers.some(a => a === null)}>
+              <Button className="gradient-primary text-primary-foreground" onClick={submitQuiz} disabled={answers.some(a => a === null)}>
                 Submit Quiz
               </Button>
             )}
