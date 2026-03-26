@@ -55,7 +55,15 @@ Use a numbered list of Q/A pairs. Keep answers to 1-2 sentences max.
 
 4. **Mermaid Diagrams** — Use \`\`\`mermaid blocks for flowcharts, processes, hierarchies, and relationships.
 
-5. **Key Formulas** — Present formulas in bold with variable definitions in a table below.
+5. **SVG Figures** — When the user asks you to draw shapes, geometric figures, graphs, coordinate planes, circuits, or any visual diagram, use \`\`\`svg code blocks with inline SVG markup. Draw actual shapes using <svg>, <circle>, <rect>, <line>, <path>, <polygon>, <text>, <ellipse>, etc. Use a viewBox (e.g. viewBox="0 0 400 300"), add labels with <text>, use colors. Examples of when to use SVG:
+   - Geometric shapes (triangles, circles, angles)
+   - Coordinate plane graphs (plot points, lines, parabolas)
+   - Physics diagrams (force vectors, circuits, optics)
+   - Biology diagrams (cell structures, simple anatomy)
+   - Venn diagrams, number lines, bar charts
+   Always make the SVG clean, labeled, and educational.
+
+6. **Key Formulas** — Present formulas in bold with variable definitions in a table below.
 
 STYLE:
 - Use **bold** for key terms on first mention.

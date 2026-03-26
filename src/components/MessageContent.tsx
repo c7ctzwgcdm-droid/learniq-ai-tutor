@@ -18,6 +18,15 @@ export function MessageContent({ content }: Props) {
             return <MermaidDiagram chart={codeString} />;
           }
 
+          if (lang === "svg") {
+            return (
+              <div
+                className="my-3 flex justify-center [&>svg]:max-w-full [&>svg]:h-auto"
+                dangerouslySetInnerHTML={{ __html: codeString }}
+              />
+            );
+          }
+
           if (lang) {
             return (
               <pre className="bg-muted text-muted-foreground text-xs p-3 rounded-lg overflow-x-auto my-2">
