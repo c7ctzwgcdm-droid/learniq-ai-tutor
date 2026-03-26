@@ -162,10 +162,10 @@ export default function TutorPage() {
                 </div>
               )}
               <div
-                className={`max-w-[70%] rounded-xl px-4 py-3 text-sm leading-relaxed ${
+                className={`rounded-2xl px-4 py-3 text-[14px] leading-relaxed ${
                   msg.role === "user"
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-card border border-border text-foreground prose prose-sm dark:prose-invert max-w-none"
+                    ? "max-w-[70%] bg-primary text-primary-foreground"
+                    : "max-w-[85%] bg-card border border-border text-foreground"
                 }`}
               >
                 {msg.role === "assistant" ? <MessageContent content={msg.content} /> : msg.content}
