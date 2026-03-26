@@ -18,6 +18,7 @@ type Difficulty = "beginner" | "intermediate" | "advanced";
 type QuizState = "setup" | "loading" | "quiz" | "results";
 
 const QUIZ_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-quiz`;
+const MAX_TOPIC_LENGTH = 100;
 
 export default function QuizPage() {
   const [state, setState] = useState<QuizState>("setup");
@@ -29,7 +30,15 @@ export default function QuizPage() {
   const [submitted, setSubmitted] = useState(false);
 
   const startQuiz = async () => {
-    if (!topic.trim()) return;
+    const trimmed = topic.trim();
+
+    // Input validation
+    if (!trimmed) return;
+    if (trimmed.length > MAX_TOPIC_LENGTH) {
+      toast.error(`Topic must be under ${MAX_TOPIC_LENGTH} characters`);
+      return;
+    }
+
     setState("loading");
 
     try {
@@ -39,7 +48,7 @@ export default function QuizPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
         },
-        body: JSON.stringify({ topic: topic.trim(), difficulty, count: 5 }),
+        body: JSON.stringify({ topic: trimmed, difficulty, count: 5 }),
       });
 
       if (!resp.ok) {
@@ -58,7 +67,7 @@ export default function QuizPage() {
       setSubmitted(false);
       setState("quiz");
     } catch (e: any) {
-      console.error("Quiz error:", e);
+      // No console.error in production — toast handles user feedback
       toast.error(e.message || "Failed to generate quiz");
       setState("setup");
     }
@@ -66,9 +75,11 @@ export default function QuizPage() {
 
   const selectAnswer = (qIndex: number, optIndex: number) => {
     if (submitted) return;
-    const newAnswers = [...answers];
-    newAnswers[qIndex] = optIndex;
-    setAnswers(newAnswers);
+    setAnswers((prev) => {
+      const next = [...prev];
+      next[qIndex] = optIndex;
+      return next;
+    });
   };
 
   const submitQuiz = () => {
@@ -76,37 +87,53 @@ export default function QuizPage() {
     setState("results");
   };
 
-  const score = answers.reduce((acc, ans, i) => acc + (ans === questions[i]?.correctIndex ? 1 : 0), 0);
-  const percentage = questions.length ? Math.round((score / questions.length) * 100) : 0;
+  const score = answers.reduce(
+    (acc, ans, i) => acc + (ans === questions[i]?.correctIndex ? 1 : 0),
+    0
+  );
+  const percentage = questions.length
+    ? Math.round((score / questions.length) * 100)
+    : 0;
 
+  // ── Setup screen ──────────────────────────────────────────────
   if (state === "setup") {
     return (
       <div className="p-6 max-w-2xl mx-auto">
         <div className="mb-8">
-          <h1 className="text-2xl font-bold font-heading text-foreground mb-2">Quiz Generator</h1>
-          <p className="text-muted-foreground">Generate a quiz on any topic with AI-powered questions.</p>
+          <h1 className="text-2xl font-bold font-heading text-foreground mb-2">
+            Quiz Generator
+          </h1>
+          <p className="text-muted-foreground">
+            Generate a quiz on any topic with AI-powered questions.
+          </p>
         </div>
 
         <div className="space-y-6 rounded-xl border border-border bg-card p-6">
           <div className="space-y-2">
-            <Label>Topic</Label>
+            <Label htmlFor="topic">Topic</Label>
             <Input
-              placeholder="e.g. Newton's Laws, Photosynthesis, Contract Law..."
+              id="topic"
+              placeholder="e.g. Newton's Laws, Photosynthesis, Contract Law"
               value={topic}
-              onChange={e => setTopic(e.target.value)}
+              onChange={(e) => setTopic(e.target.value)}
+              maxLength={MAX_TOPIC_LENGTH}
             />
+            <p className="text-xs text-muted-foreground text-right">
+              {topic.length}/{MAX_TOPIC_LENGTH}
+            </p>
           </div>
+
           <div className="space-y-2">
             <Label>Difficulty</Label>
             <div className="flex gap-2">
-              {(["beginner", "intermediate", "advanced"] as Difficulty[]).map(d => (
+              {(["beginner", "intermediate", "advanced"] as Difficulty[]).map((d) => (
                 <button
                   key={d}
                   onClick={() => setDifficulty(d)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium capitalize transition-colors border ${
+                  className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors capitalize ${
                     difficulty === d
                       ? "border-primary bg-primary/10 text-primary"
-                      : "border-border bg-background text-muted-foreground hover:border-primary/50"
+                      : "border-border text-muted-foreground hover:border-primary/50"
                   }`}
                 >
                   {d}
@@ -114,7 +141,12 @@ export default function QuizPage() {
               ))}
             </div>
           </div>
-          <Button onClick={startQuiz} disabled={!topic.trim()} className="w-full gradient-primary text-primary-foreground">
+
+          <Button
+            onClick={startQuiz}
+            disabled={!topic.trim() || topic.trim().length > MAX_TOPIC_LENGTH}
+            className="w-full gradient-primary text-primary-foreground"
+          >
             <Sparkles className="h-4 w-4 mr-2" /> Generate Quiz
           </Button>
         </div>
@@ -122,27 +154,41 @@ export default function QuizPage() {
     );
   }
 
+  // ── Loading screen ────────────────────────────────────────────
   if (state === "loading") {
     return (
       <div className="p-6 max-w-2xl mx-auto flex flex-col items-center justify-center min-h-[60vh]">
         <Loader2 className="h-10 w-10 text-primary animate-spin mb-4" />
-        <p className="text-lg font-heading font-semibold text-foreground">Generating your quiz...</p>
-        <p className="text-muted-foreground text-sm mt-1">Creating {difficulty} questions about "{topic}"</p>
+        <p className="text-lg font-heading font-semibold text-foreground">
+          Generating your quiz...
+        </p>
+        <p className="text-muted-foreground text-sm mt-1">
+          Creating {difficulty} questions about &ldquo;{topic}&rdquo;
+        </p>
       </div>
     );
   }
 
+  // ── Results screen ────────────────────────────────────────────
   if (state === "results") {
     return (
       <div className="p-6 max-w-2xl mx-auto">
-        <div className="text-center mb-8">
-          <div className={`inline-flex h-20 w-20 items-center justify-center rounded-full mb-4 ${percentage >= 70 ? "gradient-primary" : "bg-destructive/10"}`}>
-            <span className={`text-2xl font-bold ${percentage >= 70 ? "text-primary-foreground" : "text-destructive"}`}>{percentage}%</span>
+        <div className="mb-6 text-center">
+          <div className="text-5xl font-bold font-heading text-primary mb-2">
+            {percentage}%
           </div>
           <h1 className="text-2xl font-bold font-heading text-foreground mb-1">
-            {percentage >= 90 ? "Outstanding!" : percentage >= 70 ? "Great job!" : percentage >= 50 ? "Keep practising!" : "Time to review!"}
+            {percentage >= 90
+              ? "Outstanding!"
+              : percentage >= 70
+              ? "Great job!"
+              : percentage >= 50
+              ? "Keep practising!"
+              : "Time to review!"}
           </h1>
-          <p className="text-muted-foreground">{score}/{questions.length} correct answers on "{topic}"</p>
+          <p className="text-muted-foreground">
+            {score}/{questions.length} correct answers on &ldquo;{topic}&rdquo;
+          </p>
         </div>
 
         <div className="space-y-4">
@@ -154,80 +200,118 @@ export default function QuizPage() {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.05 }}
-                className={`rounded-xl border p-4 ${isCorrect ? "border-primary/30 bg-primary/5" : "border-destructive/30 bg-destructive/5"}`}
+                className="rounded-xl border border-border bg-card p-4"
               >
-                <div className="flex items-start gap-2 mb-2">
-                  {isCorrect ? <CheckCircle className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" /> : <XCircle className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />}
-                  <span className="text-sm font-medium text-foreground">{q.question}</span>
+                <div className="flex items-start gap-3 mb-3">
+                  {isCorrect ? (
+                    <CheckCircle className="h-5 w-5 text-green-500 mt-0.5 shrink-0" />
+                  ) : (
+                    <XCircle className="h-5 w-5 text-red-500 mt-0.5 shrink-0" />
+                  )}
+                  <p className="font-medium text-foreground">{q.question}</p>
                 </div>
-                {!isCorrect && answers[i] !== null && (
-                  <p className="text-xs text-destructive ml-7 mb-1">Your answer: {q.options[answers[i]!]}</p>
-                )}
-                <p className="text-xs text-primary ml-7 mb-2">Correct: {q.options[q.correctIndex]}</p>
-                <p className="text-xs text-muted-foreground ml-7">{q.explanation}</p>
+                <p className="text-sm text-muted-foreground ml-8">
+                  {q.explanation}
+                </p>
               </motion.div>
             );
           })}
         </div>
 
-        <Button className="w-full mt-6 gradient-primary text-primary-foreground" onClick={() => { setState("setup"); setTopic(""); }}>
+        <Button
+          className="w-full mt-6 gradient-primary text-primary-foreground"
+          onClick={() => {
+            setState("setup");
+            setTopic("");
+            setQuestions([]);
+            setAnswers([]);
+          }}
+        >
           Take Another Quiz
         </Button>
       </div>
     );
   }
 
+  // ── Quiz screen ───────────────────────────────────────────────
+  // Guard: if questions haven't loaded yet, render nothing
   const q = questions[currentQ];
+  if (!q) return null;
+
   return (
     <div className="p-6 max-w-2xl mx-auto">
       <div className="mb-6">
         <div className="flex items-center justify-between mb-4">
-          <h1 className="text-lg font-semibold font-heading text-foreground">Quiz: {topic}</h1>
-          <span className="text-sm text-muted-foreground">{currentQ + 1}/{questions.length}</span>
+          <h1 className="text-lg font-semibold font-heading text-foreground">
+            Quiz: {topic}
+          </h1>
+          <span className="text-sm text-muted-foreground">
+            {currentQ + 1}/{questions.length}
+          </span>
         </div>
         <div className="w-full h-2 rounded-full bg-muted overflow-hidden">
-          <div className="h-full gradient-primary rounded-full transition-all" style={{ width: `${((currentQ + 1) / questions.length) * 100}%` }} />
+          <div
+            className="h-full gradient-primary rounded-full transition-all"
+            style={{ width: `${((currentQ + 1) / questions.length) * 100}%` }}
+          />
         </div>
       </div>
 
       <AnimatePresence mode="wait">
-        <motion.div key={currentQ} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
-          <div className="rounded-xl border border-border bg-card p-6 mb-6">
-            <p className="text-base font-medium text-foreground mb-4">{q.question}</p>
-            <div className="space-y-2">
-              {q.options.map((opt, oi) => (
-                <button
-                  key={oi}
-                  onClick={() => selectAnswer(currentQ, oi)}
-                  className={`w-full text-left px-4 py-3 rounded-lg border text-sm transition-colors ${
-                    answers[currentQ] === oi
-                      ? "border-primary bg-primary/10 text-primary font-medium"
-                      : "border-border bg-background text-foreground hover:border-primary/30"
-                  }`}
-                >
-                  <span className="font-medium text-muted-foreground mr-2">{String.fromCharCode(65 + oi)}.</span>
-                  {opt}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex justify-between">
-            <Button variant="outline" disabled={currentQ === 0} onClick={() => setCurrentQ(prev => prev - 1)}>
-              Previous
-            </Button>
-            {currentQ < questions.length - 1 ? (
-              <Button variant="default" onClick={() => setCurrentQ(prev => prev + 1)} disabled={answers[currentQ] === null}>
-                Next <ArrowRight className="h-4 w-4 ml-1" />
-              </Button>
-            ) : (
-              <Button className="gradient-primary text-primary-foreground" onClick={submitQuiz} disabled={answers.some(a => a === null)}>
-                Submit Quiz
-              </Button>
-            )}
+        <motion.div
+          key={currentQ}
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -20 }}
+          className="rounded-xl border border-border bg-card p-6 mb-6"
+        >
+          <p className="text-lg font-medium text-foreground mb-6">
+            {q.question}
+          </p>
+          <div className="space-y-3">
+            {q.options.map((opt, optIdx) => (
+              <button
+                key={optIdx}
+                onClick={() => selectAnswer(currentQ, optIdx)}
+                className={`w-full text-left px-4 py-3 rounded-lg border text-sm transition-colors ${
+                  answers[currentQ] === optIdx
+                    ? "border-primary bg-primary/10 text-primary font-medium"
+                    : "border-border text-foreground hover:border-primary/50"
+                }`}
+              >
+                {opt}
+              </button>
+            ))}
           </div>
         </motion.div>
       </AnimatePresence>
+
+      <div className="flex justify-between">
+        <Button
+          variant="outline"
+          disabled={currentQ === 0}
+          onClick={() => setCurrentQ((prev) => prev - 1)}
+        >
+          Previous
+        </Button>
+        {currentQ < questions.length - 1 ? (
+          <Button
+            variant="default"
+            onClick={() => setCurrentQ((prev) => prev + 1)}
+            disabled={answers[currentQ] === null}
+          >
+            Next <ArrowRight className="h-4 w-4 ml-1" />
+          </Button>
+        ) : (
+          <Button
+            className="gradient-primary text-primary-foreground"
+            onClick={submitQuiz}
+            disabled={answers.some((a) => a === null)}
+          >
+            Submit Quiz
+          </Button>
+        )}
+      </div>
     </div>
   );
 }
