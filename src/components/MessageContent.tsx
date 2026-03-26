@@ -34,6 +34,27 @@ export function MessageContent({ content }: Props) {
             </code>
           );
         },
+        table({ children }) {
+          return (
+            <div className="overflow-x-auto my-3">
+              <table className="w-full text-xs border-collapse border border-border rounded-lg">
+                {children}
+              </table>
+            </div>
+          );
+        },
+        thead({ children }) {
+          return <thead className="bg-muted/50 font-semibold">{children}</thead>;
+        },
+        th({ children }) {
+          return <th className="border border-border px-3 py-1.5 text-left text-muted-foreground">{children}</th>;
+        },
+        td({ children }) {
+          return <td className="border border-border px-3 py-1.5">{children}</td>;
+        },
+        tr({ children }) {
+          return <tr className="even:bg-muted/20">{children}</tr>;
+        },
       }}
     >
       {content}
