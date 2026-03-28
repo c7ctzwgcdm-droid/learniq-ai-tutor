@@ -6,8 +6,14 @@ interface Props {
 }
 
 export function MessageContent({ content }: Props) {
-  // Strip any leftover $...$ LaTeX that slipped through
-  const cleaned = content.replace(/\$\$?([^$]+)\$\$?/g, "$1");
+  // Strip leftover LaTeX and stray pipe-table artifacts
+  let cleaned = content.replace(/\$\$?([^$]+)\$\$?/g, "$1");
+  // Remove lines that are just table separators like |---|---|
+  cleaned = cleaned.replace(/^\|[\s:*-]+\|[\s:*-|]*$/gm, "");
+  // Remove leading/trailing pipes from lines (table rows that slipped through)
+  cleaned = cleaned.replace(/^\|(.+)\|$/gm, (_, inner) => {
+    return inner.split("|").map((cell: string) => cell.trim()).filter(Boolean).join(" — ");
+  });
 
   return (
     <div className="message-content">
